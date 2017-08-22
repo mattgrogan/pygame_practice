@@ -1,5 +1,6 @@
 from __future__ import division
 import os
+import math
 
 import pygame
 from pygame.locals import *
@@ -22,6 +23,42 @@ image3_filename = "liberty_bell_reel3.png"
 RPM = 60
 FPS = 60
 
+class ReelStepper(object):
+
+    def __init__(self, total_steps):
+        self.total_steps = total_steps
+        self.steps_remaining = 0
+
+    def set_target(self, pos, tgt, revs=0):
+
+        if tgt == pos:
+            # Target is the same as current position
+            offset = 0
+        elif tgt > pos:
+            # Target is after the current position
+            offset = tgt - pos
+        elif tgt < pos:
+            # Target is after next revolution
+            offset = (self.total_steps - pos) + tgt
+
+        self.steps_remaining = revs * (self.total_steps) + offset
+
+        print "sr=%i pos=%i tgt=%i revs=%i" % (self.steps_remaining, pos, tgt, revs)
+
+    def step(self, steps):
+
+        steps = math.floor(steps) # Whole numbers only
+
+        if self.steps_remaining <= 0:
+            raise ValueError("Steps remaining cannot be negative")
+        elif self.steps_remaining <= steps:
+            steps = self.steps_remaining
+
+        self.steps_remaining -= steps
+
+        return steps # Actual steps taken
+
+
 
 class Reel(object):
     def __init__(self, filename, screen, screen_loc, view_size):
@@ -37,9 +74,8 @@ class Reel(object):
 
         self.image = None
 
+        self.reel_stepper = None
         self.is_spinning = False
-        self.revolutions = 0
-        self.row_rate = None
 
 
         self.rect = Rect((0, 0), self.view_size)
@@ -67,8 +103,9 @@ class Reel(object):
         self.image.blit(self.orig_image, (0, 0))
         self.image.blit(self.orig_image, (0, self.orig_h))
 
-        #self.row_rate = self.orig_h / (FPS * (RPM / 60))
-        self.row_rate = 1
+        self.row_rate = math.floor(self.orig_h / FPS)
+        #self.row_rate = 1
+        self.reel_stepper = ReelStepper(total_steps=self.orig_h)
         print self.row_rate
 
 
@@ -79,7 +116,8 @@ class Reel(object):
     def scroll(self, dy=1):
 
         if self.rect.top + dy > self.orig_h:
-            self.rect.topleft = (0, 0) # Reset to top
+            y = (self.rect.top + dy) - self.orig_h
+            self.rect.topleft = (0, y) # Reset to top
         else:
             self.rect.move_ip(0, dy)
 
@@ -92,37 +130,20 @@ class Reel(object):
     def spin(self, revolutions, stop_row):
         """ Spin for a certain amount of time. Duration in milliseconds """
 
-        # Find the distance in px rows
-        # (1) What is the distance from the current location to the top?
-        # (2) What are the total number of revolutions?
-        # (3) What is the distance from the top to the starting point?
         if not self.is_spinning:
-            print "SPINNING ====================="
-            print "ORIG_H=%i TOP=%i STOP_ROW=%i" % (self.orig_h, self.rect.top, stop_row)
-            dist_to_stop = (self.orig_h - self.rect.top) + stop_row
-            self.distance = revolutions * self.orig_h + dist_to_stop + revolutions + 1
+            self.reel_stepper.set_target(pos=self.rect.top, tgt=stop_row, revs=revolutions)
             self.is_spinning = True
-            print "Distance: %i" % self.distance
 
     def update(self):
         if self.is_spinning:
-            #print "Checking dist=%i row_rate=%i top=%i" % (self.distance, self.row_rate, self.rect.top)
-
-
-            # Check stopping condition
-            if self.distance <= 0:
+            try:
+                rows = self.reel_stepper.step(self.row_rate)
+            except ValueError:
+                print "stopping at %i" % self.rect.top
                 self.is_spinning = False
-                row_rate = 0
-                print "STOPPED AT %i" % self.rect.top
-            elif self.distance < self.row_rate:
-                print "Top %f" % self.distance
-                row_rate = self.distance # don't go too far
-            else:
-                row_rate = self.row_rate
+                return None
 
-            self.distance -= row_rate
-            #print self.distance
-            return self.scroll(dy=row_rate)
+            return self.scroll(dy=rows)
 
 def main():
 
@@ -154,6 +175,8 @@ def main():
         dirty_rects = []
 
         dirty_rects.append(r1.update())
+        dirty_rects.append(r2.update())
+        dirty_rects.append(r3.update())
 
         for e in events:
 
@@ -165,7 +188,9 @@ def main():
                     dirty_rects.append(r2.scroll(4))
                     dirty_rects.append(r3.scroll(2))
                 elif e.key == K_RETURN:
-                    r1.spin(3, 640)
+                    r1.spin(4, 640)
+                    r2.spin(6, 210)
+                    r3.spin(8, 624)
 
 
             elif e.type == QUIT:
