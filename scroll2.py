@@ -1,6 +1,6 @@
 from __future__ import division
 import os
-import math
+import random
 
 import pygame
 from pygame.locals import *
@@ -20,7 +20,7 @@ image1_filename = "liberty_bell_reel1.png"
 image2_filename = "liberty_bell_reel2.png"
 image3_filename = "liberty_bell_reel3.png"
 
-RPM = 60
+RPM = 90
 FPS = 60
 
 class ReelStepper(object):
@@ -47,7 +47,7 @@ class ReelStepper(object):
 
     def step(self, steps):
 
-        steps = math.floor(steps) # Whole numbers only
+        steps = steps
 
         if self.steps_remaining <= 0:
             raise ValueError("Steps remaining cannot be negative")
@@ -103,7 +103,7 @@ class Reel(object):
         self.image.blit(self.orig_image, (0, 0))
         self.image.blit(self.orig_image, (0, self.orig_h))
 
-        self.row_rate = math.floor(self.orig_h / FPS)
+        self.row_rate = self.orig_h / (60 / RPM) / FPS
         #self.row_rate = 1
         self.reel_stepper = ReelStepper(total_steps=self.orig_h)
         print self.row_rate
@@ -165,7 +165,6 @@ def main():
     pygame.display.flip()
 
     clock = pygame.time.Clock()
-    clock.tick(FPS)
 
     going = True
     while going:
@@ -188,15 +187,26 @@ def main():
                     dirty_rects.append(r2.scroll(4))
                     dirty_rects.append(r3.scroll(2))
                 elif e.key == K_RETURN:
-                    r1.spin(4, 640)
-                    r2.spin(6, 210)
-                    r3.spin(8, 624)
+                    r1.spin(3, random.randint(0, r1.orig_h))
+                    r2.spin(4, random.randint(0, r2.orig_h))
+                    r3.spin(5, random.randint(0, r3.orig_h))
 
 
             elif e.type == QUIT:
                 going = False
 
+        font = pygame.font.SysFont('Calibri', 25, True, False)
+        text = font.render(str(clock.get_fps()), True, Color("black"), Color("white"))
+        text_rect = Rect(600, 450, text.get_rect().width, text.get_rect().height)
+        screen.blit(text, text_rect)
+        dirty_rects.append(text_rect)
+
         pygame.display.update(dirty_rects)
+
+
+
+        clock.tick(FPS)
+
 
 
 if __name__ == '__main__':
